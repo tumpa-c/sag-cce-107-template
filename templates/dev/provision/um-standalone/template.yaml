@@ -1,0 +1,145 @@
+alias: um-standalone-dev
+description: Universal Messaging Provisioning
+version: 1.0
+dslVersion: "1.2"
+options:
+#Default value =false
+  forceRestartWhenDone: true
+#Default value =false
+  abortOnConfigFailure: true
+#Default value =false
+  abortOnLayerStartupFailure: ${abortOnLayerStartupFailure}
+changes:
+  - 1.0 initial version Universal Messaging cluster installation
+
+environments:
+  default:
+    cc.installer:                        ${}
+    nodes.install.dir:                   ${}
+    nodes.spm.is.secure.connection:      true
+    nodes.spm.port:                      ${}
+    nodes.ssh.login.credentials.key:     ${}
+    nodes.hosts:                         ${}
+    nodes.ssh.port:                      22
+    repo.product:                        ${}
+    repo.fix:                            ${}
+    spm.fixes:                           ${}
+    #SPM variable
+    nodes.domain.prefix:                 ${}
+    # Universal Messaging Server. See um-layer template for parameters documentation
+    um.fixes:                            ${}
+    um.instance.port:                    ${}
+    um.memory.init:                      ${}
+    um.memory.max:                       ${}
+    um.memory.direct:                    ${}
+    um.product.configure:                ${}
+    um.instance.configure:               ${}
+    um.instance.name:                    ${}
+    um.configure:                        ${}
+    um.numrealmserver.license.key:       ${}
+    um.url:                              ${}
+    um.jndi.cf:                          ${}
+
+ 
+layers:
+  default:
+    productRepo: ${repo.product}
+    fixRepo:     ${repo.fix}
+
+  spm:
+    description: Management layer of SPM
+    templates:   spm           # spm templates to provision
+  um-product:                                      # um-layer templates
+    description: Universal Messaging Layer
+    templates:   ${um.product.configure}
+  um1:                                      # um-layer templates
+    description: Universal Messaging Layer
+    templates:   ${um.instance.configure}
+  um-server:                                      # um-layer templates
+    description: Universal Messaging Layer
+    templates:   ${um.configure}    
+
+
+templates:
+  spm:
+    description: Infrastructure template
+    fixes:   ${spm.fixes}
+    products:
+      SPM:
+
+  um-product:
+    description: Universal Messaging Product installations
+    licenses:                                                      # lisenses to copy from central license repository
+      "UniversalMessaging/server/templates/licence.xml": "${um.numrealmserver.license.key}" # license file
+    products:
+      NUMRepository:
+      NUMInstanceManager:
+      NUMRealmServer:
+      NUMEnterpriseManager:
+        em:
+          runtimeComponentId: Universal-Messaging-${um.instance.name}
+      NUMClient:
+    fixes: ${um.fixes}
+
+
+  um-instance:
+    description: UM instance
+    products:
+      NUMRealmServer:
+        ${um.instance.name}:
+          instance.port: ${um.instance.port}                                #Port number which the um instane listens to
+          instance.ip: "0.0.0.0"                                            #IP address to which the instance is binded to
+          runtimeComponentId: Universal-Messaging-${um.instance.name}
+          configuration:
+            Universal-Messaging-${instance.name}: 
+              COMMON-MEMORY:                                                # make a label to re-use configuration
+                COMMON-MEMORY:                                              # customize JVM memory
+                  InitSize: ${um.memory.init}
+                  MaxSize:  ${um.memory.max}
+                  ExtendedProperties:                                       # extended JVM setting
+                    Property: 
+                      - 
+                       "@name": "-XX:MaxDirectMemorySize"
+                       $: ${um.memory.direct}
+
+  um-server:
+    description: Standalone configuration for single UM instance
+    products:
+      NUMRealmServer:
+        ${um.instance.name}:
+          runtimeComponentId: Universal-Messaging-${um.instance.name}
+          configuration:
+            Universal-Messaging-${instance.name}:
+              UM-JNDI-CF:
+                UM-JNDI-CF-${um.jndi.cf}:
+                  name: ${um.jndi.cf}
+                  type: ConnectionFactory
+                  url: ${um.url}
+                  durableType: Shared
+   
+provision:
+  default:     # All environments have same set of nodes & layers. We do not need to have specific entry for environment type
+    spm:
+       hosts: ${nodes.hosts}
+    um-product:
+       hosts: ${nodes.hosts}
+    um1:
+       indexes: [1]
+    um-server:
+       indexes: [1]
+
+nodes:
+  default:
+    aliasMapping:
+      prefix: "${nodes.domain.prefix}"
+      policy: INDEX
+      overwrite: true
+      delimiter: "-"
+    default:
+      port:  ${nodes.spm.port}
+      secure: ${nodes.spm.is.secure.connection}
+      bootstrapInfo:
+        installer: ${cc.installer}
+        installDir: ${nodes.install.dir}
+        port:   ${nodes.ssh.port}
+        credentials: ${nodes.ssh.login.credentials.key}       # SSH Key Alias

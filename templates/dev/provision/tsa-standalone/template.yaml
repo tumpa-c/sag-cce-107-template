@@ -1,0 +1,164 @@
+alias: tsa-standalone-dev
+description: TSA Provisioning
+version: 1.0
+dslVersion: "1.2"
+options:
+#Default value =false
+  forceRestartWhenDone: true
+#Default value =false
+  abortOnConfigFailure: true
+#Default value =false
+  abortOnLayerStartupFailure: ${abortOnLayerStartupFailure}
+changes:
+  - 1.0 initial version Terracotta Server array
+
+
+environments:
+  default:
+    cc.installer:                         ${}
+    nodes.install.dir:                    ${}
+    nodes.spm.is.secure.connection:       true
+    nodes.spm.port:                       ${}
+    nodes.ssh.login.credentials.key:      ${}
+    nodes.hosts:                          ${}
+    nodes.ssh.port:                       22
+    repo.product:                         ${}
+    repo.fix:                             ${}
+    spm.fixes:                            ALL
+    #SPM variable
+    nodes.domain.prefix:                  ${}
+    #Terracotta variables
+    tsa.configure:                        ${}
+    tsa.fixes:                            ${}
+    tsa.patches:                          ${}
+    tc.tsa.port:                          ${}
+    tc.jmx.port:                          ${}
+    tc.grp.port:                          ${}
+    tc.mgt.port:                          ${}
+    tsa.memory.init:                      ${}
+    tsa.memory.max:                       ${}
+
+  tc-server:
+    tsa.configure:                        tc-server
+    tsa.name:                             ${}
+    tsa.host:                             ${}
+
+###
+# Layers - groups of identically setup nodes to perform specific role
+###
+
+layers:
+  default:
+    productRepo: ${repo.product}
+    fixRepo:     ${repo.fix}
+
+  spm:
+    description: Management layer of SPM
+    templates:   spm           # spm templates to provision
+
+  tsa:
+    description: Terracotta Server Array
+    templates:   ${tsa.configure}               # is-layer templates to provision
+
+templates:
+ # Platform Manager
+  spm:
+    description: Infrastructure template
+    fixes:   ${spm.fixes}
+    products:
+      SPM:
+
+
+  tc-server:
+    licenses:
+      "common/conf/terracotta-license.key": ${tsa.license.key.alias}
+      "Terracotta/terracotta-license.key": ${tsa.license.key.alias}
+    fixes: ${tsa.fixes}
+    patches: ${tsa.patches}
+    products:
+      TES:
+        default:
+          configuration:
+            TES-default:
+              COMMON-MEMORY:
+                COMMON-MEMORY:
+                  InitSize: ${tsa.memory.init}
+                  MaxSize:  ${tsa.memory.max}
+              TC-CONFIG:
+                TC-CONFIG: |
+                  <ns2:tc-config xmlns:ns2="http://www.terracotta.org/config">
+                      <tc-properties>
+                          <property name="ehcache.storageStrategy.dcv2.perElementTTITTL.enabled" value="true"/>
+                          <property name="l2.nha.dirtydb.rolling" value="1"/>
+                          <property name="l2.nha.dirtydb.autoDelete" value="true"/>
+                          <property name="l2.frs.compactor.policy" value="SizeBasedCompactionPolicy"/>
+                          <property name="l2.frs.compactor.sizeBased.threshold" value="0.50"/>
+                          <property name="l2.l1reconnect.enabled" value="true"/>
+                          <property name="l2.l1reconnect.timeout.millis" value="5000"/>
+                          <property name="l2.nha.tcgroupcomm.reconnect.enabled" value="true"/>
+                          <property name="l2.nha.tcgroupcomm.reconnect.timeout" value="5000"/>
+                      </tc-properties>
+                    <servers>
+                                <server name="${tsa.name}" host="${tsa.host}">
+                                    <data>${nodes.install.dir}/Terracotta/data/server-data</data>
+                                    <logs>${nodes.install.dir}/Terracotta/logs/server-logs</logs>
+                                    <index>${nodes.install.dir}/Terracotta/data/server-index</index>
+                                    <tsa-port>${tc.tsa.port}</tsa-port>
+                                    <jmx-port>${tc.jmx.port}</jmx-port>
+                                    <tsa-group-port>${tc.grp.port}</tsa-group-port>
+                                    <management-port>${tc.mgt.port}</management-port>
+                                    <dataStorage size="${tc.storage.size}">
+                                        <offheap size="${tc.offheap.size}"/>
+                                    </dataStorage>
+                                </server>
+                        <update-check>
+                          <enabled>false</enabled>
+                          <period-days>10</period-days>
+                        </update-check>
+                        <garbage-collection>
+                          <enabled>false</enabled>
+                          <verbose>false</verbose>
+                          <interval>3600</interval>
+                        </garbage-collection>
+                        <restartable enabled="true"/>
+                        <client-reconnect-window>120</client-reconnect-window>
+                      </servers>
+                  </ns2:tc-config>
+              TC-SERVER-NAME:
+                TC-SERVER-NAME:
+                  serverName: ${node.host}
+
+
+##
+# Provisioning map of layers to nodes for each environment type
+###
+
+provision:
+  default:     # All environments have same set of nodes & layers. We do not need to have specific entry for environment type
+    spm:
+       hosts: ${nodes.hosts}
+    tsa:
+       hosts: ${nodes.hosts}
+
+
+
+###
+# Nodes -Having details about target node's SPM bootstrap details,specific to each environment types
+###
+
+
+nodes:
+  default:
+    aliasMapping:
+      prefix: "${nodes.domain.prefix}"
+      policy: INDEX
+      overwrite: true
+      delimiter: "-"
+    default:
+      port:   ${nodes.spm.port}
+      secure: ${nodes.spm.is.secure.connection}
+      bootstrapInfo:
+        installer:    ${cc.installer}
+        installDir:   ${nodes.install.dir}
+        port:         ${nodes.ssh.port}
+        credentials:    ${nodes.ssh.login.credentials.key}       # SSH Key Alias

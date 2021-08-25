@@ -1,0 +1,586 @@
+alias: is-cluster-prod
+description: Integration Server Provisioning
+version: 1.0
+dslVersion: "1.2"
+options:
+#Default value =false
+  forceRestartWhenDone: true
+#Default value =false
+  abortOnConfigFailure: true
+#Default value =false
+  abortOnLayerStartupFailure: ${abortOnLayerStartupFailure}
+changes:
+  - 1.0 initial version Integration Server cluster installation
+
+environments:
+  default:
+    cc.installer:                        ${}
+    nodes.install.dir:                   ${}
+    nodes.spm.is.secure.connection:      true
+    nodes.spm.port:                      ${}
+    nodes.ssh.login.credentials.key:     ${}
+    nodes.hosts:                         ${}
+    nodes.ssh.port:                      22
+    repo.product:                        ${}
+    repo.fix:                            ${}
+    spm.fixes:                           ${}
+    #SPM variable
+    nodes.domain.prefix:                 ${}
+    #Integration Server Variables
+    is.diagnostic.port:                  ${}
+    is.license.key.alias:                ${}
+    br.license.key.alias:                ${}
+    is.jmx.port:                         ${}
+    is.primary.port:                     ${}
+    is.fixes:                            ${}
+    is.patches:                          []
+    is.configure:                        ${}
+    is.instance.name:                    ${}
+    is.max.threads:                      ${}
+    is.min.threads:                      ${}
+    is.memory.init:                      ${}
+    is.memory.max:                       ${}
+    is.install.service:                  ${}
+    is.session.timeout:                  ${}
+    is.cluster.name:                     ${}
+    is.cluster.enabled:                  ${}
+    um.clientprefix:                     ${}
+    is.ShareClientPrefix:                ${}
+    um.jndi.cf:                          ${}
+    um.cluster.url:                      ${}
+
+    tc.license.key.alias:                ${}
+    tc.tsa.port:                         ${}
+    tsa.host1:                           ${}
+    tsa.host2:                           ${}
+
+    #Database Variables
+    db.component.version:                ${}             # REQUIRED: target release, e.g. 10.5
+    dbc.fixes:                           ${}
+    dbc.patches:                         []
+    dbc.configure:                       ${}
+    db.type:                             ${}
+    db.url:                              "jdbc:wm:${db.type}://${db.host}:${db.port};ServiceName=${db.name}"
+    db.name:                             ${}
+    db.alias:                            ${}
+    db.is.username:                      ${}
+    db.is.password:                      ${}
+    db.audit.username:                   ${}
+    db.audit.password:                   ${}
+    db.tn.username:                      ${}
+    db.tn.password:                      ${}
+    tablespace.data:                     ${}
+    tablespace.index:                    ${}
+    #MWS DB Components details
+    db.mws.url:                          "jdbc:wm:${db.type}://${db.host}:${db.port};ServiceName=${db.name}"
+    db.mws.username:                     ${}
+    db.mws.password:                     ${}
+    # Monitor variables
+    mws.lb.protocol:                     ${}
+    mws.lb.http.port:                    ${}
+    mws.lb.host:                         ${}
+    mws.username:                        ${}
+    mws.password:                        ${}
+    db.product.scripts:
+      - DatabaseComponentConfigurator
+      - OBEcdc      
+      - WOKcdc
+      - TNScdc
+      - MWScdc
+      - MATcdc
+      - ODEcdc
+      - PIEcdc
+      - PIEEmbeddedCdc
+      - PIEMobileCdc
+      - WMNcdc
+      - WPEcdc
+      - WSTcdc
+      - YAIcdc
+
+    db.MAT.components:
+      - ActiveTransfer 
+      - ActiveTransferArchive
+
+    db.OBE.components:
+      - Analysis
+      - ProcessTracker
+      - DataPurge
+      - DatabaseManagement
+      - OperationManagement
+      - ProcessAudit
+  
+    db.WOK.components:       
+      - BusinessRules
+    
+    db.TNS.components:   
+      - TradingNetworks
+      - TradingNetworksArchive
+
+    db.MWS.components:  
+      - MywebMethodsServer
+
+    #Component list for creating DB schemas for Integration Server and Microservices Runtime    
+    db.PIE.components: 
+      - ISInternal
+      - ISCoreAudit
+      - CrossReference
+      - DocumentHistory
+      - DistributedLocking 
+
+    db.WMN.components:    
+      - Archive
+      - Staging
+      - Reporting
+      - OperationManagement
+
+    db.WPE.components:   
+      - ProcessEngine
+      - ProcessAudit
+
+    db.YAI.components:  
+      - APIGatewayEvents
+
+
+################################################################
+
+# Layers - groups of identically setup nodes to perform specific role
+# within this environment
+#################################################################
+
+layers:
+  default:
+    productRepo: ${repo.product}
+    fixRepo:     ${repo.fix}
+
+  spm:
+    description: Management layer of SPM
+    templates:   spm           # spm templates to provision
+
+  dbc:            # dbc layer to provision
+    description: Database configuration
+    templates:   ${dbc.configure}
+    databases:
+      is-db:
+        components:  ${db.PIE.components}
+        version:     ${db.component.version}
+        db.type:     ${db.type}
+        db.url:      "${db.url}"
+        db.username: "${db.is.username}"
+        db.password: "${db.is.password}"
+        db.name:     ${db.name}
+        db.tablespace.data: ${tablespace.data}
+        db.tablespace.index: ${tablespace.index}
+
+      mws-db:
+        components:  ${db.MWS.components}
+        version:     ${db.component.version}
+        db.type:     ${db.type}
+        db.url:      "${db.url}"
+        db.username: "${db.mws.username}"
+        db.password: "${db.mws.password}"
+        db.name:     ${db.name}
+        db.tablespace.data: ${tablespace.data}
+        db.tablespace.index: ${tablespace.index}
+
+      audit-db:
+        components:  ${db.WPE.components}
+        version:     ${db.component.version}
+        db.type:     ${db.type}
+        db.url:      "${db.url}"
+        db.username: "${db.audit.username}"
+        db.password: "${db.audit.password}"
+        db.name:     ${db.name}
+        db.tablespace.data: ${tablespace.data}
+        db.tablespace.index: ${tablespace.index}
+      tn-db:
+        components:  ${db.TNS.components}
+        version:     ${db.component.version}
+        db.type:     ${db.type}
+        db.url:      "${db.url}"
+        db.username: "${db.tn.username}"
+        db.password: "${db.tn.password}"
+        db.name:     ${db.name}
+        db.tablespace.data: ${tablespace.data}
+        db.tablespace.index: ${tablespace.index}
+
+  is: 
+    description: Integration Server Layer
+    templates: ${is.configure}
+
+templates:
+
+  spm:
+    description: Infrastructure template
+    fixes:   ${spm.fixes}
+    products:
+      SPM:
+ # Database Configuration
+  dbc:
+    description: Database Configurator
+    fixes:   ${dbc.fixes}
+    patches: ${dbc.patches}
+    products: ${db.product.scripts}
+
+  is-cluster:
+    description: IS layer can be single server or a cluster
+    licenses:
+      "IntegrationServer/config/licenseKey.xml": ${is.license.key.alias}
+      "IntegrationServer/instances/${is.instance.name}/config/licenseKey.xml": ${is.license.key.alias}
+      "IntegrationServer/instances/${is.instance.name}/packages/WmBusinessRules/config/licenseKey.xml": ${br.license.key.alias}
+      "common/conf/terracotta-license.key": ${tc.license.key.alias}
+    fixes: ${is.fixes}
+    patches: ${is.patches}
+    products:
+      jdbcAdapter:
+      MWSCentralUserManagement:
+      Monitor:
+      wmprt:
+      brmspackage:
+      TaskClientPackage:
+      TNServer:
+      MWSPIETaskEngine:
+      Deployer:
+      PIFDeployment:
+      NUMDeployer:
+      WSTDeployer:
+      LJPDeployer:
+      PLS_IS:
+      integrationServer: # the core IS product that owns the instance
+        ${is.instance.name}:
+          primary.port:    ${is.primary.port}
+          diagnostic.port: ${is.diagnostic.port}
+          jmx.port:        ${is.jmx.port}
+          license.file:    IntegrationServer/config/licenseKey.xml
+          install.service: ${is.install.service}
+          db.type:         ${db.type}
+          db.url:          "${db.url}"
+          db.username:     ${db.is.username}
+          db.password:     ${db.is.password}
+          db.alias:        ${db.alias}
+          package.list:    WmNUMDeployer,WmAgileAppsDeployer,WmCloudStreamsDeployer,WmBrokerDeployer,WmDeployer,WmMonitor,WmTaskEngine,WmTaskAssets,WmPRT,WmTaskClient,WmART,WmBusinessRules,WmTN,WmTNExtDC,WmFlatFile,WmJDBCAdapter
+          configuration:
+            OSGI-IS_${is.instance.name}:
+              COMMON-MEMORY:
+                COMMON-MEMORY:
+                  InitSize: ${is.memory.init}
+                  MaxSize: ${is.memory.max}
+            integrationServer-${is.instance.name}:
+              COMMON-JDBC:
+                COMMON-JDBC-ISInternal:
+                   Pool:
+                     '@alias': 'ISInternal'
+                     Name: ISInternal
+                     Description: ISInternal
+                     MinSize: '0'
+                     MaxSize: '50'
+                     MaxIdleTime: '60000'
+                     CacheStatements: false
+                     DatabaseServer:
+                        '@type': ORACLE
+                        URL: "${db.url}"
+                        User: ${db.is.username}
+                        Password: ${db.is.password}
+                     ExtendedProperties:
+                      Property:
+                        -
+                           "@name": "AvailConnWarningThreshold"
+                           $: '0'
+                        -
+                           "@name": "WaitingThreadThresholdCount"
+                           $: '0'
+                COMMON-JDBC-Audit:
+                   Pool:
+                     '@alias': 'Audit'
+                     Name: Audit
+                     Description: Audit
+                     MinSize: '0'
+                     MaxSize: '50'
+                     MaxIdleTime: '60000'
+                     CacheStatements: false
+                     DatabaseServer:
+                        '@type': ORACLE
+                        URL: "${db.url}"
+                        User: ${db.audit.username}
+                        Password: ${db.audit.password}
+                     ExtendedProperties:
+                      Property:
+                        -
+                           "@name": "AvailConnWarningThreshold"
+                           $: '0'
+                        -
+                           "@name": "WaitingThreadThresholdCount"
+                           $: '0'
+                COMMON-JDBC-MWSCentralUser:
+                   Pool:
+                     '@alias': 'MWSCentralUser'
+                     Name: MWSCentralUser
+                     Description: MWSCentralUser
+                     MinSize: '0'
+                     MaxSize: '50'
+                     MaxIdleTime: '60000'
+                     CacheStatements: false
+                     DatabaseServer:
+                        '@type': ORACLE
+                        URL: "${db.url}"
+                        User: ${db.mws.username}
+                        Password: ${db.mws.password}
+                     ExtendedProperties:
+                      Property:
+                        -
+                           "@name": "AvailConnWarningThreshold"
+                           $: '0'
+                        -
+                           "@name": "WaitingThreadThresholdCount"
+                           $: '0'
+                COMMON-JDBC-TradingNetwork:
+                   Pool:
+                     '@alias': 'TradingNetwork'
+                     Name: TradingNetwork
+                     Description: TradingNetwork
+                     MinSize: '0'
+                     MaxSize: '50'
+                     MaxIdleTime: '60000'
+                     CacheStatements: false
+                     DatabaseServer:
+                        '@type': ORACLE
+                        URL: "${db.url}"
+                        User: ${db.tn.username}
+                        Password: ${db.tn.password}
+                     ExtendedProperties:
+                      Property:
+                        -
+                           "@name": "AvailConnWarningThreshold"
+                           $: '0'
+                        -
+                           "@name": "WaitingThreadThresholdCount"
+                           $: '0'
+              COMMON-DBFUNCTION:
+                COMMON-DBFUNCTION-CentralUsers:
+                  Function:
+                    "@alias": "CentralUsers"
+                    PoolAlias: "MWSCentralUser"
+                    Description: "Central User Management Configuration"
+                COMMON-DBFUNCTION-ISInternal:
+                  Function:
+                    "@alias": "ISInternal"
+                    PoolAlias: ISInternal
+                    Description: "For internal use by IS facilities"
+                COMMON-DBFUNCTION-ISCoreAudit:
+                  Function:
+                    "@alias": "ISCoreAudit"
+                    PoolAlias: ISInternal
+                    Description: "IS Core Audit Log Manager Function"
+                COMMON-DBFUNCTION-ProcessAudit:
+                  Function:
+                    "@alias": "ProcessAudit"
+                    PoolAlias: Audit
+                    Description: "Process Audit Log Manager Function"
+                COMMON-DBFUNCTION-ProcessEngine:
+                  Function:
+                    "@alias": "ProcessEngine"
+                    PoolAlias: Audit
+                    Description: "Schema for Process Engine"
+                COMMON-DBFUNCTION-Xref:
+                  Function:
+                    "@alias": "Xref"
+                    PoolAlias: ISInternal
+                    Description: "Key Cross Referencing and Echo Suppression"
+                COMMON-DBFUNCTION-TN:
+                  Function:
+                    "@alias": "TN"
+                    PoolAlias: TradingNetwork
+                    Description: "Trading Networks Function"
+                COMMON-DBFUNCTION-DocumentHistory:
+                  Function:
+                    "@alias": "DocumentHistory"
+                    PoolAlias: ISInternal
+                    Description: "Document History for Exactly Once Processing"
+              IS-RESOURCES:
+                IS-RESOURCES:
+                  Resources:
+                    ServerThreadPool:
+                      MaximumThreads: ${is.max.threads}
+                      MinimumThreads: ${is.min.threads}
+                      AvailableThreadsWarningThreshold: 15
+                      SchedulerThreadThrottle: 75
+                    Session:
+                      SessionTimeout: ${is.session.timeout}
+                      EnableStatefulSessionLimit: true
+                      MaximumStatefulSessions: 2147483647
+                      AvailableStatefulSessionWarningThreshold: 25
+              COMMON-WMMESSAGING:
+                COMMON-WMMESSAGING-IS_UM_CONNECTION:
+                  Messaging:
+                    "@alias": IS_UM_CONNECTION
+                    Description: Default UM connection alias
+                    ClientPrefix: ${um.clientprefix}
+                    ShareClientPrefix: ${is.ShareClientPrefix}
+                    Enabled: true
+                    Provider:
+                      "@type": UM
+                      URL: ${um.cluster.url}
+                      MaxRetryAttempts: "5"
+                      RetryInterval: "30000"
+              COMMON-JNDI:
+                COMMON-JNDI-DEFAULT_IS_JNDI_PROVIDER:
+                  JNDI:
+                    '@alias': DEFAULT_IS_JNDI_PROVIDER
+                    Description: system generated JNDI provider alias
+                    Provider:
+                      URL: ${um.cluster.url}
+                      InitialContextFactory: com.pcbsys.nirvana.nSpace.NirvanaContextFactory
+                      User: ""
+                      Password: ""
+              COMMON-JMS:
+                COMMON-JMS-DEFAULT_IS_JMS_CONNECTION:
+                  JMS:
+                    "@alias": DEFAULT_IS_JMS_CONNECTION
+                    Description: Default JMS connection alias
+                    Enabled: true
+                    TransactionType: NO_TRANSACTION
+                    ClientId: DEFAULT_IS_JMS_CLIENT
+                    Provider:
+                      "@type": JNDI
+                      JNDIAlias: DEFAULT_IS_JNDI_PROVIDER
+                      JNDIConnectionFactoryName: ${um.jndi.cf}
+                    User: ""
+                    MaxRetryAttempts: 0
+                    RetryInterval: 0
+                    Caching: DISABLED
+                    ExtendedProperties:
+                      Property:
+                        -
+                          "@name": "jndi_connectionFactoryUpdateType"
+                          $: "NONE"
+                        -
+                          "@name": "jndi_connectionFactoryPollingInterval"
+                          $: "0"
+                        -
+                          "@name": "classLoader"
+                          $: "INTEGRATION_SERVER"
+                        -
+                          "@name": "csqSize"
+                          $: "-1"
+                        -
+                          "@name": "csqDrainInOrder"
+                          $: "true"
+                        -
+                          "@name": "optTempQueueCreate"
+                          $: "true"
+                        -
+                          "@name": "manageDestinations"
+                          $: "true"
+                        -
+                          "@name": "allowNewConnectionPerTrigger"
+                          $: "false"
+                COMMON-JMS-PE_NONTRANSACTIONAL_ALIAS:
+                  JMS:
+                    "@alias": PE_NONTRANSACTIONAL_ALIAS
+                    Description: Default JMS connection alias
+                    Enabled: true
+                    TransactionType: NO_TRANSACTION
+                    ClientId: IS_PE
+                    Provider:
+                      "@type": JNDI
+                      JNDIAlias: DEFAULT_IS_JNDI_PROVIDER
+                      JNDIConnectionFactoryName: ${um.jndi.cf}
+                    User: ""
+                    MaxRetryAttempts: 0
+                    RetryInterval: 0
+                    Caching: DISABLED
+                    ExtendedProperties:
+                      Property:
+                        -
+                          "@name": "jndi_connectionFactoryUpdateType"
+                          $: "NONE"
+                        -
+                          "@name": "jndi_connectionFactoryPollingInterval"
+                          $: "0"
+                        -
+                          "@name": "classLoader"
+                          $: "INTEGRATION_SERVER"
+                        -
+                          "@name": "csqSize"
+                          $: "-1"
+                        -
+                          "@name": "csqDrainInOrder"
+                          $: "true"
+                        -
+                          "@name": "optTempQueueCreate"
+                          $: "true"
+                        -
+                          "@name": "manageDestinations"
+                          $: "true"
+                        -
+                          "@name": "allowNewConnectionPerTrigger"
+                          $: "false"
+              COMMON-CLUSTER:
+                COMMON-CLUSTER:
+                  Name: ${is.cluster.name}
+                  Enabled: ${is.cluster.enabled}
+                  Servers:
+                    Server:
+                    - URL: ${tsa.host1}:${tc.tsa.port}
+                    - URL: ${tsa.host2}:${tc.tsa.port}
+            OSGI-IS_${is.instance.name}-WmMonitor:
+              COMMON-COMPONENT-ENDPOINTS:
+                COMMON-COMPONENT-ENDPOINTS-MWS:
+                  "@alias": MWS
+                  Transport:
+                    Protocol: ${mws.lb.protocol}
+                    Host:     ${mws.lb.host}
+                    Port:     ${mws.lb.http.port}
+                  Auth:
+                    "@type": BASIC
+                    User: ${mws.username}
+                    Password: ${mws.password}
+                  ExtendedProperties:
+                    Property:
+                      -
+                        "@name": "dlsEnabled"
+                        $: "false"
+                      -
+                        "@name": "dlsSuperUser"
+                        $: "Administrator"
+                      -
+                        "@name": "dbRetries"
+                        $: "3"
+                      -
+                        "@name": "reportingBatchSize"
+                        $: "100"
+                      -
+                        "@name": "jdbcArchive"
+                        $: "false"
+                      -
+                        "@name": "addMwUsertoMonitorACL"
+                        $: "true"
+                      -
+                        "@name": "resubmitOnLocalIS"
+                        $: "true"
+
+provision:
+  default:     # All environments have same set of nodes & layers. We do not need to have specific entry for environment type
+    spm:
+      hosts: ${nodes.hosts}
+    dbc:
+      indexes: [1]
+    is:
+      hosts: ${nodes.hosts}
+
+
+
+nodes:
+  default:
+    aliasMapping:
+      prefix: "${nodes.domain.prefix}"
+      policy: INDEX
+      overwrite: true
+      delimiter: "-"
+    default:
+      port:  ${nodes.spm.port}
+      secure: ${nodes.spm.is.secure.connection}
+      bootstrapInfo:
+        installer: ${cc.installer}
+        installDir: ${nodes.install.dir}
+        port:   ${nodes.ssh.port}
+        credentials: ${nodes.ssh.login.credentials.key}       # SSH Key Alias

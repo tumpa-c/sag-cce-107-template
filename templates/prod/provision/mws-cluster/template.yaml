@@ -1,0 +1,345 @@
+alias: mws-cluster-prod
+description: My webmethods server Provisioning
+version: 1.0
+dslVersion: "1.2"
+options:
+#Default value =false
+  forceRestartWhenDone: true
+#Default value =false
+  abortOnConfigFailure: true
+#Default value =false
+  abortOnLayerStartupFailure: ${abortOnLayerStartupFailure}
+changes:
+  - 1.0 initial version Integration Server cluster installation
+
+environments:
+  default:
+    cc.installer:                        ${}
+    nodes.install.dir:                   ${}
+    nodes.spm.is.secure.connection:      true
+    nodes.spm.port:                      ${}
+    nodes.ssh.login.credentials.key:     ${}
+    nodes.hosts:                         ${}
+    nodes.ssh.port:                      22
+    repo.product:                        ${}
+    repo.fix:                            ${}
+    spm.fixes:                           ${}
+    #SPM variable
+    nodes.domain.prefix:                 ${}
+    #Database Variables
+    db.component.version:                ${}             # REQUIRED: target release, e.g. 10.5
+    dbc.fixes:                           ${}
+    dbc.patches:                         []
+    dbc.configure:                       ${}
+    db.type:                             ${}
+    db.name:                             ${}
+    db.host:                             ${}
+    db.port:                             ${}
+    tablespace.data:                     ${}
+    tablespace.index:                    ${}
+    #MWS DB Components details
+    db.mws.url:                          "jdbc:wm:${db.type}://${db.host}:${db.port};ServiceName=${db.name}"
+    db.mws.username:                     ${}
+    db.mws.password:                     ${}
+    # MWS variables
+    mws.fixes:                           ${}
+    mws.lb.protocol:                     ${}
+    mws.lb.http.port:                    ${}
+    mws.lb.https.port:                   ${}
+    mws.lb.host:                         ${}
+    mws.jmx.port:                        ${}
+    mws.http.port:                       ${}
+    mws.https.port:                      ${}
+    mws.username:                        ${}
+    mws.password:                        ${}
+    mws.memory.init:                     ${}
+    mws.memory.max:                      ${}
+    mws.configure:                       ${}
+    mws.instance.name:                   ${}
+    #UM Endpoint variables for MWS Cluster
+    um.cluster.url:                      ${}
+
+    #IS Variables
+    is.lb.protocol:                      ${}
+    is.lb.host:                          ${}
+    is.lb.port:                          ${}
+
+    db.product.scripts:
+      - DatabaseComponentConfigurator
+      - OBEcdc      
+      - WOKcdc
+      - TNScdc
+      - MWScdc
+      - MATcdc
+      - ODEcdc
+      - PIEcdc
+      - PIEEmbeddedCdc
+      - PIEMobileCdc
+      - WMNcdc
+      - WPEcdc
+      - WSTcdc
+      - YAIcdc
+
+    db.MAT.components:
+      - ActiveTransfer 
+      - ActiveTransferArchive
+
+    db.OBE.components:
+      - Analysis
+      - ProcessTracker
+      - DataPurge
+      - DatabaseManagement
+      - OperationManagement
+      - ProcessAudit
+  
+    db.WOK.components:       
+      - BusinessRules
+    
+    db.TNS.components:   
+      - TradingNetworks
+      - TradingNetworksArchive
+
+    db.MWS.components:  
+      - MywebMethodsServer
+
+    #Component list for creating DB schemas for Integration Server and Microservices Runtime    
+    db.PIE.components: 
+      - ISInternal
+      - ISCoreAudit
+      - CrossReference
+      - DocumentHistory
+      - DistributedLocking 
+
+    db.WMN.components:    
+      - Archive
+      - Staging
+      - Reporting
+      - OperationManagement
+
+    db.WPE.components:   
+      - ProcessEngine
+      - ProcessAudit
+
+    db.YAI.components:  
+      - APIGatewayEvents
+
+################################################################
+
+# Layers - groups of identically setup nodes to perform specific role
+# within this environment
+#################################################################
+
+layers:
+  default:
+    productRepo: ${repo.product}
+    fixRepo:     ${repo.fix}
+
+  spm:
+    description: Management layer of SPM
+    templates:   spm           # spm templates to provision
+
+  dbc:            # dbc layer to provision
+    description: Database configuration
+    templates:   ${dbc.configure}
+    databases:
+      mws-db:
+        components:  ${db.MWS.components}
+        version:     ${db.component.version}
+        db.type:     ${db.type}
+        db.url:      "${db.mws.url}"
+        db.username: "${db.mws.username}"
+        db.password: "${db.mws.password}"
+        db.name:     ${db.name}
+        db.tablespace.data: ${tablespace.data}
+        db.tablespace.index: ${tablespace.index}
+
+  mws: 
+    description: Integration Server Layer
+    templates: ${mws.configure}
+
+templates:
+
+  spm:
+    description: Infrastructure template
+    fixes:   ${spm.fixes}
+    products:
+      SPM:
+ # Database Configuration
+  dbc:
+    description: Database Configurator
+    fixes:   ${dbc.fixes}
+    patches: ${dbc.patches}
+    products: ${db.product.scripts}
+  
+  mws-cluster:
+    description: MWS layer can be single server or a cluster
+    fixes: ${mws.fixes}
+    products:
+      SBPRuntime:
+      MWSDiagnostics:
+      SBPPortal:
+      centralConfiguratorUI:
+      integrationServerPortal:
+      monitorUI:
+      TNBAMPortal:
+      infraDCUI:
+      optimizeUI:
+      TNPortal:
+      TaskEngineRuntime:
+      MwsProgramFiles:
+        ${mws.instance.name}: # MWS instance
+          node.name:   ${node.host} # unique cluster node name
+          http.port:   ${mws.http.port}
+          https.port:  ${mws.https.port}
+          jmx.port:    ${mws.jmx.port}
+          db.type:     ${db.type}
+          db.url:      "${db.mws.url}"
+          db.username: ${db.mws.username}
+          db.password: ${db.mws.password}
+          configuration:
+            OSGI-MWS_${instance.name}:
+              COMMON-MEMORY:
+                COMMON-MEMORY:
+                  InitSize: ${mws.memory.init}
+                  MaxSize:  ${mws.memory.max}
+            MwsProgramFiles-${instance.name}:
+              COMMON-CLUSTER:
+                COMMON-CLUSTER:
+                  Enabled: 'true'
+                  Name: MWS Cluster
+                  Servers:
+                    Server:
+                    - '@name': ${hosts[1]}
+                      URL: http://${hosts[1]}:${mws.http.port}
+                      ExtendedProperties:
+                        Property:
+                        - '@name': autodeploy
+                          $: 'true'
+                        - '@name': search
+                          $: 'true'
+                        - '@name': taskengine
+                          $: 'true'
+                        - '@name': notification
+                          $: 'true'
+                    - '@name': ${hosts[2]}
+                      URL: http://${hosts[2]}:${mws.http.port}
+                      ExtendedProperties:
+                        Property:
+                        - '@name': autodeploy
+                          $: 'true'
+                        - '@name': search
+                          $: 'true'
+                        - '@name': taskengine
+                          $: 'true'
+                        - '@name': notification
+                          $: 'true'
+                  ExtendedProperties:
+                    Property:
+                    - '@name': LoadBalancerHost
+                      $: ${mws.lb.host}
+                    - '@name': LoadBalancerHttpPort
+                      $: ${mws.lb.http.port}
+                    - '@name': LoadBalancerHttpsPort
+                      $: ${mws.lb.https.port}
+                    - '@name': contextPath
+                    - '@name': jndiProviderUrl
+                      $: ${um.cluster.url}
+                    - '@name': clusterId
+                      $: ""
+              COMMON-JDBC:
+                COMMON-JDBC-default:
+                  Pool:
+                    "@primary": 'true'
+                    "@alias": '1'
+                    Name: default
+                    Description: Default
+                    MinSize: '0'
+                    MaxSize: '20'
+                    MaxIdleTime: '60'
+                    CacheStatements: 'false'
+                    DatabaseServer:
+                      '@type': ORACLE
+                      Database: oracle
+                      URL: "${db.mws.url}"
+                      User: ${db.mws.username}
+                      Password: ${db.mws.password}
+                    Driver:
+                      Class: com.wm.dd.jdbc.oracle.OracleDriver
+                    ExtendedProperties:
+                      Property:
+                        -
+                          "@name": CLEANUPPERIOD
+                          "$": '10'
+                        -
+                          "@name": TESTSQL
+                          "$": SELECT COUNT(*) FROM TBLTHING WHERE IDTHING = 1
+                        -
+                          "@name": SQLWORKERCLASS
+                          "$": com.webmethods.portal.service.sql.core.BaseSqlWorker
+                        - 
+                          "@name": CONNPROVIDERCLASS
+                          "$": com.webmethods.portal.service.sql.core.provider.pool.PooledConnectionProvider
+            TaskEngineRuntime-${instance.name}:
+              COMMON-COMPONENT-ENDPOINTS:
+                COMMON-COMPONENT-ENDPOINTS-RULES-ENGINE-CONNECTION:
+                  '@alias': RULES-ENGINE-CONNECTION
+                  Description: Connection to Rules Engine from Task Engine
+                  Transport:
+                    '@type': MANUAL
+                    Protocol: ${is.lb.protocol}
+                    Host: ${is.lb.host}
+                    Port: ${is.lb.port}
+                  Auth:
+                    '@type': BASIC
+                    User: Administrator
+                    Password: manage
+                COMMON-COMPONENT-ENDPOINTS-RULES-ENGINE-CONNECTION:
+                  '@alias': RULES-ENGINE-CONNECTION
+                  Description: Connection to Rules Engine from Task Engine
+                  Transport:
+                    '@type': MANUAL
+                    Protocol: ${is.lb.protocol}
+                    Host: ${is.lb.host}
+                    Port: ${is.lb.port}
+                  Auth:
+                    '@type': BASIC
+                    User: Administrator
+                    Password: manage
+            optimizeSharedUI-${instance.name}:
+              COMMON-COMPONENT-ENDPOINTS:
+                COMMON-COMPONENT-ENDPOINTS-IS-BPMonly:
+                  '@alias': IS-BPMonly
+                  Description: BPM only
+                  Transport:
+                    Protocol: ${is.lb.protocol}
+                    Host: ${is.lb.host}
+                    Port: ${is.lb.port}
+                  Auth:
+                    '@type': AUTO
+
+
+provision:
+  default:     # All environments have same set of nodes & layers. We do not need to have specific entry for environment type
+    spm:
+      hosts: ${nodes.hosts}
+    dbc:
+      indexes: [1]
+    mws:
+      hosts: ${nodes.hosts}
+
+
+nodes:
+  default:
+    aliasMapping:
+      prefix: "${nodes.domain.prefix}"
+      policy: INDEX
+      overwrite: true
+      delimiter: "-"
+    default:
+      port:  ${nodes.spm.port}
+      secure: ${nodes.spm.is.secure.connection}
+      bootstrapInfo:
+        installer: ${cc.installer}
+        installDir: ${nodes.install.dir}
+        port:   ${nodes.ssh.port}
+        credentials: ${nodes.ssh.login.credentials.key}       # SSH Key Alias

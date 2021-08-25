@@ -1,0 +1,365 @@
+alias: apimgmt-cluster-prod
+version: 1.0
+description: API Gateway provisioning and cluster configuration
+dslVersion: "1.2"
+options:
+#Default value =false   ## Test with false & true values  & then update the values
+  forceRestartWhenDone: true
+#Default value =false
+  abortOnConfigFailure: true
+#Default value =false
+  abortOnLayerStartupFailure: ${abortOnLayerStartupFailure}
+changes:
+  - 1.0 First version of API Gateway Internal
+
+environments:
+  default:
+    repo.product:                      ${}
+    repo.fix:                          ${}
+    cc.installer:                      ${}
+    nodes.install.dir:                 ${}
+    nodes.spm.is.secure.connection:    true
+    nodes.spm.port:                    ${}
+    nodes.ssh.login.credentials.key:   ${}
+    nodes.hosts:                       ${}
+    nodes.ssh.port:                    22
+
+    #SPM variable
+    nodes.domain.prefix:               ${}
+    spm.fixes:                         ${}
+    #API Variables
+    is.instance.type:                  ${}           # IS instance type: integrationServer (for all versions) or MSC (for 10.3 and lower)
+    agw.key.license:                   ${}
+    agw.instance.name:                 ${}
+    agw.primary.port:                  ${}
+    agw.diagnostic.port:               ${}
+    agw.jmx.port:                      ${}
+    agw.memory.init:                   ${}
+    agw.memory.max:                    ${}
+    agw.install.service:               ${}
+    agw.fixes:                         ${}
+    agw.logger.mode:                   ${}
+    agw.configure:                     ${}
+    agw.cluster.enabled:               ${}
+    agw.cluster.name:                  ${}
+    agw.session.timeout:               ${}
+    agw.max.threads:                   ${}
+    agw.min.threads:                   ${}
+
+    #IDS Variables
+
+    ids.port:                          ${}
+    ids.fixes:                         ${}
+    ids.repo.shared.path:              ${}
+    ids.configure:                     ${}
+  
+    #TC Variables
+    tsa.key.license:                   ${}
+    tc.tsa.port:                       ${}
+    tsa.host1:                         ${}
+    tsa.host2:                         ${}
+
+    # Database. See dbc template for parameters documentation
+    dbc.host:                          ${}                # database configurator host
+    dbc.fixes:                         ${}                # fixes for database configurator
+    dbc.configure:                     ${}                # dbc templates to be provisioned
+    # Database connection. 
+    db.type:                           ${}                # REQUIRED: Database type: oracle,sqlserver,db2
+    db.host:                           ${}                # REQUIRED: Database server hostname
+    db.port:                           ${}                # REQUIRED: Database server port
+    db.name:                           ${}                # Database name
+    db.username:                       ${}                # Database username
+    db.password:                       ${}                # Database password
+    db.url:                            "jdbc:wm:${db.type}://${db.host}:${db.port};ServiceName=${db.name}"   # Database url
+    db.alias:                          ${}                # Database alias
+    db.component.version:              ${}
+    db.product.scripts:
+      - DatabaseComponentConfigurator
+      - OBEcdc      
+      - WOKcdc
+      - TNScdc
+      - MWScdc
+      - MATcdc
+      - ODEcdc
+      - PIEcdc
+      - PIEEmbeddedCdc
+      - PIEMobileCdc
+      - WMNcdc
+      - WPEcdc
+      - WSTcdc
+      - YAIcdc
+    db.PIE.components: 
+      - ISInternal
+      - ISCoreAudit
+      - CrossReference
+      - DocumentHistory
+      - DistributedLocking 
+    db.YAI.components:  
+      - APIGatewayEvents
+    tablespace.data:                   ${}
+    tablespace.index:                  ${}
+
+layers:
+  default:
+    productRepo: ${repo.product}
+    fixRepo:     ${repo.fix}
+
+  spm:
+    description: Management layer of SPM
+    templates:   spm           # spm templates to provision
+  dbc:
+    description: Database configuration
+    templates:   ${dbc.configure}           # dbc templates to provision
+    databases:
+      is-db:
+        components:  ${db.PIE.components}
+        version:     ${db.component.version}
+        db.type:     ${db.type}
+        db.url:      "${db.url}"
+        db.username: "${db.username}"
+        db.password: "${db.password}"
+        db.name:     ${db.name}
+        db.tablespace.data: ${tablespace.data}
+        db.tablespace.index: ${tablespace.index}
+      api-db:
+        components:  ${db.YAI.components}
+        version:     ${db.component.version}
+        db.type:     ${db.type}
+        db.url:      "${db.url}"
+        db.username: "${db.username}"
+        db.password: "${db.password}"
+        db.name:     ${db.name}
+        db.tablespace.data: ${tablespace.data}
+        db.tablespace.index: ${tablespace.index}
+  agw:
+    description: API Gateway Layer
+    templates: ${agw.configure}
+  ids:
+    description: Internal Data  Layer
+    templates: ${ids.configure}
+
+templates:
+
+  spm:
+    description: Infrastructure template
+    fixes:   ${spm.fixes}
+    products:
+      SPM:
+ # Database Configuration
+  dbc:
+    description: Database Configurator
+    products: ${db.product.scripts}
+    fixes:   ${dbc.fixes}
+
+  agw-cluster:
+    licenses:
+      "IntegrationServer/config/APIGatewayLicenseKey.xml": ${agw.key.license}
+      "common/conf/terracotta-license.key": ${tsa.key.license}
+    fixes: ${agw.fixes}
+    products:
+      CEL:
+      YAI:
+      ${is.instance.type}:
+        ${agw.instance.name}:
+          primary.port:    ${agw.primary.port}
+          diagnostic.port: ${agw.diagnostic.port}
+          jmx.port:        ${agw.jmx.port}
+          license.file:    IntegrationServer/config/APIGatewayLicenseKey.xml
+          install.service: ${agw.install.service}
+          package.list:    WmAPIGateway
+          db.type:         ${db.type}
+          db.url:          "${db.url}"
+          db.username:     ${db.username}
+          db.password:     ${db.password}
+          db.alias:        ${db.alias}
+          configuration:
+            OSGI-IS_${instance.name}:
+              COMMON-MEMORY:
+                COMMON-MEMORY:
+                  InitSize: ${agw.memory.init}
+                  MaxSize:  ${agw.memory.max}
+              COMMON-JVM-OPTIONS:
+                COMMON-JVM-OPTIONS:
+                    option:
+                      - "-Xbootclasspath/a:\"%JAVA_BOOT_CLASSPATH%\""
+                      - "-server"
+                      - "-verbose:gc"
+                      - "-XX:+PrintGC"
+                      - "-XX:+PrintGCDetails"
+                      - "-XX:+PrintGCTimeStamps"
+                      - "-XX:+PrintTenuringDistribution"
+                      - "-XX:+PrintGCCause"
+                      - "-XX:+PrintAdaptiveSizePolicy"
+                      - "-XX:+UseGCLogFileRotation"
+                      - "-XX:NumberOfGCLogFiles=5"
+                      - "-XX:GCLogFileSize=10M"
+                      - "-Xloggc:%OSGI_INSTALL_AREA%/logs/gc_agw.log"
+            integrationServer-${instance.name}:  
+              COMMON-JDBC:
+                COMMON-JDBC-ISInternal:
+                   Pool:
+                     '@alias': 'ISInternal'
+                     Name: ISInternal
+                     Description: ISInternal
+                     MinSize: '0'
+                     MaxSize: '50'
+                     MaxIdleTime: '60000'
+                     CacheStatements: false
+                     DatabaseServer:
+                        '@type': ORACLE
+                        URL: "${db.url}"
+                        User: ${db.username}
+                        Password: ${db.password}
+                     ExtendedProperties:
+                      Property:
+                        -
+                           "@name": "AvailConnWarningThreshold"
+                           $: '0'
+                        -
+                           "@name": "WaitingThreadThresholdCount"
+                           $: '0'
+              COMMON-DBFUNCTION:
+                COMMON-DBFUNCTION-CentralUsers:
+                  Function:
+                    "@alias": "CentralUsers"
+                    PoolAlias: ""
+                    Description: "Central User Management Configuration"
+                COMMON-DBFUNCTION-ISInternal:
+                  Function:
+                    "@alias": "ISInternal"
+                    PoolAlias: ISInternal
+                    Description: "For internal use by IS facilities"
+                COMMON-DBFUNCTION-ISCoreAudit:
+                  Function:
+                    "@alias": "ISCoreAudit"
+                    PoolAlias: ISInternal
+                    Description: "IS Core Audit Log Manager Function"
+                COMMON-DBFUNCTION-ProcessAudit:
+                  Function:
+                    "@alias": "ProcessAudit"
+                    PoolAlias: ""
+                    Description: "Process Audit Log Manager Function"
+                COMMON-DBFUNCTION-ProcessEngine:
+                  Function:
+                    "@alias": "ProcessEngine"
+                    PoolAlias: ""
+                    Description: "Schema for Process Engine"
+                COMMON-DBFUNCTION-Xref:
+                  Function:
+                    "@alias": "Xref"
+                    PoolAlias: ISInternal
+                    Description: "Key Cross Referencing and Echo Suppression"
+                COMMON-DBFUNCTION-TN:
+                  Function:
+                    "@alias": "TN"
+                    PoolAlias: ""
+                    Description: "Trading Networks Function"
+                COMMON-DBFUNCTION-DocumentHistory:
+                  Function:
+                    "@alias": "DocumentHistory"
+                    PoolAlias: ISInternal
+                    Description: "Document History for Exactly Once Processing"
+                COMMON-DBFUNCTION-APIGateway:
+                  Function:
+                    "@alias": "APIGateway"
+                    PoolAlias: ISInternal
+                    Description: "APIGateway events"
+              IS-RESOURCES:
+                IS-RESOURCES:
+                  Resources:
+                    ServerThreadPool:
+                      MaximumThreads: ${agw.max.threads}
+                      MinimumThreads: ${agw.min.threads}
+                      AvailableThreadsWarningThreshold: 15
+                      SchedulerThreadThrottle: 75
+                    Session:
+                      SessionTimeout: ${agw.session.timeout}
+                      EnableStatefulSessionLimit: true
+                      MaximumStatefulSessions: 2147483647
+                      AvailableStatefulSessionWarningThreshold: 25          
+              COMMON-CLUSTER:
+                COMMON-CLUSTER:
+                  Name: ${agw.cluster.name}
+                  Enabled: ${agw.cluster.enabled}
+                  Servers:
+                    Server:
+                    - URL: ${tsa.host1}:${tc.tsa.port}
+                    - URL: ${tsa.host2}:${tc.tsa.port}
+
+  ids-cluster:
+    fixes: ${ids.fixes}
+    products:
+      CEL:
+        CEL:
+          configuration:
+            CEL:
+              COMMON-CLUSTER:
+                COMMON-CLUSTER-default:
+                  Enabled: 'true'
+                  Name: SAG_EventDataStore
+                  Servers:
+                    Server:
+                    - ExtendedProperties:
+                        Property:
+                        - '@name': node
+                          $: ${nodes[1]}
+                        - '@name': host
+                          $: ${hosts[1]}
+                        - '@name': port
+                          $: ${ids.port}
+                    - ExtendedProperties:
+                        Property:
+                        - '@name': node
+                          $: ${nodes[2]}
+                        - '@name': host
+                          $: ${hosts[2]}
+                        - '@name': port
+                          $: ${ids.port}
+                    - ExtendedProperties:
+                        Property:
+                        - '@name': node
+                          $: ${nodes[3]}
+                        - '@name': host
+                          $: ${hosts[3]}
+                        - '@name': port
+                          $: ${ids.port}
+              CUSTOM-PROPERTIES:
+                CUSTOM-PROPERTIES-default: |
+                  path.repo: ${ids.repo.shared.path}
+                  node.name: ${node.alias}
+                  cluster.initial_master_nodes:
+                  - ${nodes[1]}
+                  - ${nodes[2]}
+                  - ${nodes[3]}
+provision:
+  default:     # All environments have same set of nodes & layers. We do not need to have specific entry for environment type
+    spm:
+       hosts: ${nodes.hosts}
+    dbc:
+       indexes: [1]
+    ids:
+       hosts: ${nodes.hosts}
+    agw:
+       hosts: ${nodes.hosts}
+###
+# Nodes -Having details about target node's SPM bootstrap details,specific to each environment types
+###
+
+
+nodes:
+  default:
+    aliasMapping:
+      prefix: "${nodes.domain.prefix}"
+      policy: INDEX
+      overwrite: true
+      delimiter: "-"
+    default:
+      port:   ${nodes.spm.port}
+      secure: ${nodes.spm.is.secure.connection}
+      bootstrapInfo:
+        installer:    ${cc.installer}
+        installDir:   ${nodes.install.dir}
+        port:         ${nodes.ssh.port}
+        credentials:    ${nodes.ssh.login.credentials.key}       # SSH Key Alias
+
+    
